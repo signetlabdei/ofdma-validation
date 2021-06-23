@@ -5,7 +5,7 @@ Authors: Davide Magrin, Stefano Avallone, Sumit Roy and Michele Zorzi
 
 ### To reproduce this work directly
 
-Visit [this link](https://mybinder.org/v2/gh/signetlabdei/ofdma-validation/HEAD?filepath=src%2Fwifi%2Fexperiments%2Fofdma-validation%2FOFDMA%20Validation.ipynb)!
+Visit [this link](https://mybinder.org/v2/gh/signetlabdei/ofdma-validation/HEAD?urlpath=lab%2Ftree%2Fsrc%2Fwifi%2Fexperiments%2Fofdma-validation%2FOFDMA%20Validation.ipynb)!
 
 ### To reproduce this work on your own machine
 

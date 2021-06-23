@@ -1,0 +1,2 @@
+set -ex
+pip3 install --user https://github.com/signetlabdei/sem/archive/develop.zip seaborn
