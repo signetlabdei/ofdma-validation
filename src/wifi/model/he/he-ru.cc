@@ -456,35 +456,56 @@ HeRu::GetRuType (uint16_t bandwidth)
 
 HeRu::RuType
 HeRu::GetEqualSizedRusForStations (uint16_t bandwidth, std::size_t& nStations,
-                                   std::size_t& nCentral26TonesRus)
+                                   std::size_t& nCentral26TonesRus, bool standard)
 {
-  RuType ruType;
+  RuType ruType = RU_26_TONE;
   uint8_t nRusAssigned = 0;
 
   // iterate over all the available RU types
-  for (auto& ru : m_heRuSubcarrierGroups)
+  if (standard)
     {
-      if (ru.first.first == bandwidth && ru.second.size () <= nStations)
+      for (auto &ru : m_heRuSubcarrierGroups)
         {
-          ruType = ru.first.second;
-          nRusAssigned = ru.second.size ();
-          break;
+          if (ru.first.first == bandwidth)
+            {
+              if (ru.second.size () <= nStations)
+                {
+                  ruType = ru.first.second;
+                  nRusAssigned = ru.second.size ();
+                  break;
+                }
+              else if (bandwidth == 160 && ru.first.first == 80 &&
+                       (2 * ru.second.size () <= nStations))
+                {
+                  ruType = ru.first.second;
+                  nRusAssigned = 2 * ru.second.size ();
+                  break;
+                }
+            }
         }
-      else if (bandwidth == 160 && ru.first.first == 80 && (2 * ru.second.size () <= nStations))
+      if (nRusAssigned == 0)
         {
-          ruType = ru.first.second;
-          nRusAssigned = 2 * ru.second.size ();
-          break;
+          NS_ABORT_IF (bandwidth != 160 || nStations != 1);
+          nRusAssigned = 1;
+          ruType = RU_2x996_TONE;
         }
+      nStations = nRusAssigned;
     }
-  if (nRusAssigned == 0)
+  else
     {
-      NS_ABORT_IF (bandwidth != 160 || nStations != 1);
-      nRusAssigned = 1;
-      ruType = RU_2x996_TONE;
+      for (auto &ru : m_heRuSubcarrierGroups)
+        {
+          if (ru.first.first == bandwidth)
+            {
+              if (ru.second.size () >= nStations)
+                {
+                  ruType = ru.first.second;
+                  nRusAssigned = ru.second.size ();
+                }
+            }
+        }
+      nStations = nRusAssigned;
     }
-
-  nStations = nRusAssigned;
 
   switch (ruType)
     {

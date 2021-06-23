@@ -234,7 +234,10 @@ QosFrameExchangeManager::StartTransmission (Ptr<QosTxop> edca, Time txopDuration
       if (!StartFrameExchange (m_edca, m_edca->GetRemainingTxop (), false))
         {
           NS_LOG_DEBUG ("Not enough remaining TXOP time");
-          return SendCfEndIfNeeded ();
+          // return SendCfEndIfNeeded ();
+          m_edca->NotifyChannelReleased ();
+          m_edca = 0;
+          return false;
         }
 
       return true;

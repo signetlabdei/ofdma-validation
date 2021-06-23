@@ -19,13 +19,15 @@
  */
 
 #include "ns3/log.h"
-#include "rr-multi-user-scheduler.h"
+#include "ns3/qos-utils.h"
+#include "ns3/string.h"
+#include "ns3/rr-multi-user-scheduler.h"
 #include "ns3/wifi-protection.h"
 #include "ns3/wifi-acknowledgment.h"
 #include "ns3/wifi-psdu.h"
-#include "he-frame-exchange-manager.h"
-#include "he-configuration.h"
-#include "he-phy.h"
+#include "ns3/he-frame-exchange-manager.h"
+#include "ns3/he-configuration.h"
+#include "ns3/he-phy.h"
 #include <algorithm>
 
 namespace ns3 {
@@ -86,6 +88,11 @@ RrMultiUserScheduler::GetTypeId (void)
                    TimeValue (Seconds (1)),
                    MakeTimeAccessor (&RrMultiUserScheduler::m_maxCredits),
                    MakeTimeChecker ())
+    .AddAttribute ("SchedulerLogic",
+                   "Standard or Bellalta",
+                   StringValue ("Standard"),
+                   MakeStringAccessor (&RrMultiUserScheduler::m_schedulerLogic),
+                   MakeStringChecker ())
   ;
   return tid;
 }
@@ -110,6 +117,12 @@ RrMultiUserScheduler::DoInitialize (void)
                                        MakeCallback (&RrMultiUserScheduler::NotifyStationAssociated, this));
   m_apMac->TraceConnectWithoutContext ("DeAssociatedSta",
                                        MakeCallback (&RrMultiUserScheduler::NotifyStationDeassociated, this));
+  m_staList = {{AC_BE, std::list<MasterInfo> ()}};
+  // if (m_staList.empty())
+  //   {
+  //     AcIndex primaryAc = m_edca->GetAccessCategory ();
+  //     m_staList.at(primaryAc) = {MasterInfo {aid, address, 0.0}};
+  //   }
   MultiUserScheduler::DoInitialize ();
 }
 
@@ -502,8 +515,15 @@ RrMultiUserScheduler::TrySendingDlMuPpdu (void)
 
   std::size_t count = std::min (static_cast<std::size_t> (m_nStations), m_staList[primaryAc].size ());
   std::size_t nCentral26TonesRus;
-  HeRu::RuType ruType = HeRu::GetEqualSizedRusForStations (m_apMac->GetWifiPhy ()->GetChannelWidth (), count,
-                                                           nCentral26TonesRus);
+  HeRu::RuType ruType;
+  if (m_schedulerLogic == "Standard")
+    {
+      ruType = HeRu::GetEqualSizedRusForStations (m_apMac->GetWifiPhy ()->GetChannelWidth (), count, nCentral26TonesRus);
+    }
+  else
+    {
+      ruType = HeRu::GetEqualSizedRusForStations (m_apMac->GetWifiPhy ()->GetChannelWidth (), count, nCentral26TonesRus, false);
+    }
   NS_ASSERT (count >= 1);
 
   if (!m_useCentral26TonesRus)
@@ -552,6 +572,7 @@ RrMultiUserScheduler::TrySendingDlMuPpdu (void)
   auto staIt = m_staList[primaryAc].begin ();
   m_candidates.clear ();
 
+  NS_LOG_DEBUG ("m_nStations: " << unsigned(m_nStations) << ", count: " << count << ", m_staList: " << m_staList[primaryAc].size());
   while (staIt != m_staList[primaryAc].end ()
          && m_candidates.size () < std::min (static_cast<std::size_t> (m_nStations), count + nCentral26TonesRus))
     {
@@ -640,7 +661,20 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
   // compute how many stations can be granted an RU and the RU size
   std::size_t nRusAssigned = m_txParams.GetPsduInfoMap ().size ();
   std::size_t nCentral26TonesRus;
-  HeRu::RuType ruType = HeRu::GetEqualSizedRusForStations (bw, nRusAssigned, nCentral26TonesRus);
+
+  HeRu::RuType ruType;
+  if (m_schedulerLogic == "Standard")
+    {
+      ruType = HeRu::GetEqualSizedRusForStations (bw, nRusAssigned, nCentral26TonesRus);
+      std::cout << "Using the standard scheduler, trying to allocate " << m_candidates.size() << " STAs" << std::endl;
+      std::cout << "Decided to use RUs of type " << ruType << std::endl;
+    }
+  else
+    {
+      ruType = HeRu::GetEqualSizedRusForStations (bw, nRusAssigned, nCentral26TonesRus, false);
+      std::cout << "Using the bellalta (hol) scheduler, trying to allocate " << m_candidates.size() << " STAs" << std::endl;
+      std::cout << "Decided to use RUs of type " << ruType << std::endl;
+    }
 
   NS_LOG_DEBUG (nRusAssigned << " stations are being assigned a " << ruType << " RU");
 
@@ -665,7 +699,10 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
 
   for (std::size_t i = 0; i < nRusAssigned + nCentral26TonesRus; i++)
     {
-      NS_ASSERT (candidateIt != m_candidates.end ());
+      if (candidateIt == m_candidates.end ())
+        {
+          break;
+        }
 
       uint16_t staId = candidateIt->first->aid;
       // AssignRuIndices will be called below to set RuSpec
@@ -683,6 +720,9 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
   m_txParams.Clear ();
 
   Ptr<const WifiMacQueueItem> mpdu;
+
+  std::cout << "We have " << m_candidates.size() << " STAs to serve" << std::endl;
+  std::cout << "Assigned " << nRusAssigned << " RUs" << std::endl;
 
   // Compute the TX params (again) by using the stored MPDUs and the final TXVECTOR
   Time actualAvailableTime = (m_initialFrame ? Time::Min () : m_availableTime);
@@ -769,7 +809,10 @@ RrMultiUserScheduler::ComputeDlMuInfo (void)
 
   for (std::size_t i = 0; i < nRusAssigned + nCentral26TonesRus; i++)
     {
-      NS_ASSERT (candidateIt != m_candidates.end ());
+      if (candidateIt == m_candidates.end ())
+        {
+          break;
+        }
 
       candidateIt->first->credits -= debitsPerMhz * HeRu::GetBandwidth (i < nRusAssigned ? ruType : HeRu::RU_26_TONE);
 

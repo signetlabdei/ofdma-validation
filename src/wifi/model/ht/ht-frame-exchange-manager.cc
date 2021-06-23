@@ -687,6 +687,8 @@ HtFrameExchangeManager::GetPsduDurationId (Time txDuration, const WifiTxParamete
       return txParams.m_acknowledgment->acknowledgmentTime;
     }
 
+  return txParams.m_acknowledgment->acknowledgmentTime;
+
   // under multiple protection settings, if the TXOP limit is not null, Duration/ID
   // is set to cover the remaining TXOP time (Sec. 9.2.5.2 of 802.11-2016).
   // The TXOP holder may exceed the TXOP limit in some situations (Sec. 10.22.2.8

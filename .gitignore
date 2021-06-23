@@ -38,3 +38,6 @@ build/
 /.project
 
 version.cache
+
+src/wifi/experiments/ofdma-validation/ofdma-validation-results
+.ipynb_checkpoints

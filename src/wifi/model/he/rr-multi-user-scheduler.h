@@ -138,6 +138,7 @@ private:
   Time m_tbPpduDuration;                                //!< Duration of the solicited TB PPDUs
   WifiTxParameters m_txParams;                          //!< TX parameters
   TriggerFrameType m_ulTriggerType;                     //!< Trigger Frame type for UL MU
+  std::string m_schedulerLogic = "Standard";
 };
 
 } //namespace ns3
